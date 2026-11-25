@@ -1,0 +1,32 @@
+name: Radar frames
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+concurrency:
+  group: radar
+  cancel-in-progress: false
+jobs:
+  frames:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Seed with the published frames
+        run: python seed.py out
+      - name: Europe (EUMETNET OPERA)
+        run: python opera.py out --hours 2 || echo "opera failed"
+      - name: USA (NEXRAD via IEM)
+        run: python us.py out --hours 2 || echo "us failed"
+      - name: Upload to R2
+        env:
+          R2_KEYS_TEXT: ${{ secrets.R2_KEYS }}
+        run: |
+          printf '%s' "$R2_KEYS_TEXT" > "$RUNNER_TEMP/r2.txt"
+          R2_KEYS="$RUNNER_TEMP/r2.txt" python r2put.py out
+          rm -f "$RUNNER_TEMP/r2.txt"
